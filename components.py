@@ -86,19 +86,27 @@ class Board:
         return result
 
     def place_mines(self, safe_col: int, safe_row: int) -> None:
-        # TODO: Place mines randomly, guaranteeing the first click and its neighbors are safe. And Compute adjacency counts
-        # all_positions = [(c, r) for r in range(self.rows) for c in range(self.cols)]
-        # forbidden = {(safe_col, safe_row)} | set(self.neighbors(safe_col, safe_row))
-        # pool = [p for p in all_positions if p not in forbidden]
-        # random.shuffle(pool)
-        
-        # Compute adjacency counts
-        # for r in range(self.rows):
-        #     for c in range(self.cols):
+        all_positions = [(c, r) for r in range(self.rows) for c in range(self.cols)]
+        forbidden = {(safe_col, safe_row)} | set(self.neighbors(safe_col, safe_row))
+        pool = [p for p in all_positions if p not in forbidden]
+        random.shuffle(pool)
+        mine_position = set(pool[:self.num_mines])
 
-        # self._mines_placed = True
+        for (c, r) in mine_position:
+            self.cells[self.index(c, r)].state.is_mine = True
 
-        pass
+        for r in range(self.rows):
+            for c in range(self.cols):
+                cell = self.cells[self.index(c, r)]
+                if cell.state.is_mine:
+                    continue
+                adjacent_count = 0
+                for x, y in self.neighbors(c, r):
+                    if self.cells[self.index(x, y)].state.is_mine:
+                        adjacent_count += 1
+                cell.state.adjacent = adjacent_count 
+
+        self._mines_placed = True
 
     def reveal(self, col: int, row: int) -> None:
         # TODO: Reveal a cell; if zero-adjacent, iteratively flood to neighbors.
