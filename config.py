@@ -57,8 +57,8 @@ number_colors = {
     4: (123, 31, 162),   # purple
     5: (255, 143, 0),    # orange
     6: (0, 151, 167),    # cyan
-    7: (85, 85, 85),     # gray
-    8: (0, 0, 0),        # black
+    7: (0, 0, 0),        # black
+    8: (85, 85, 85),     # gray
 }
 
 # Text / UI
@@ -66,6 +66,9 @@ font_name = None  # default pygame font
 font_size = 22
 header_font_size = 24
 result_font_size = 64
+
+# Number font (for adjacency labels)
+number_font_family = "consolas"  # e.g. "couriernew", "arial"
 
 # Input
 mouse_left = 1
@@ -80,4 +83,3 @@ result_overlay_alpha = 120
 
 # Misc
 title = "Minesweeper"
-
