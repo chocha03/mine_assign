@@ -10,6 +10,8 @@ The logic lives in components.Board; this module should not implement rules.
 """
 
 import sys
+import os
+import json
 
 import pygame
 
@@ -71,7 +73,7 @@ class Renderer:
                 )
         pygame.draw.rect(self.screen, config.color_grid, rect, 1)
 
-    def draw_header(self, remaining_mines: int, time_text: str) -> None:
+    def draw_header(self, remaining_mines: int, time_text: str, best_text: str) -> None:
         """Draw the header bar containing remaining mines and elapsed time."""
         pygame.draw.rect(
             self.screen,
@@ -79,22 +81,42 @@ class Renderer:
             Rect(0, 0, config.width, config.margin_top - 4),
         )
         left_text = f"Mines: {remaining_mines}"
+        mid_text = f"Best: {best_text}"
         right_text = f"Time: {time_text}"
+
         left_label = self.header_font.render(left_text, True, config.color_header_text)
+        mid_label = self.header_font.render(mid_text, True, config.color_header_text)
         right_label = self.header_font.render(right_text, True, config.color_header_text)
+
         self.screen.blit(left_label, (10, 12))
+
+        mid_x = (config.width // 2) - (mid_label.get_width() // 2)
+        self.screen.blit(mid_label, (mid_x, 12))
+
         self.screen.blit(right_label, (config.width - right_label.get_width() - 10, 12))
 
     def draw_result_overlay(self, text: str | None) -> None:
-        """Draw a semi-transparent overlay with centered result text, if any."""
+        """Draw a semi-transparent overlay with centered result text, if any.
+
+        Supports multi-line text separated by '\n'.
+        """
         if not text:
             return
         overlay = pygame.Surface((config.width, config.height), pygame.SRCALPHA)
         overlay.fill((0, 0, 0, config.result_overlay_alpha))
         self.screen.blit(overlay, (0, 0))
-        label = self.result_font.render(text, True, config.color_result)
-        rect = label.get_rect(center=(config.width // 2, config.height // 2))
-        self.screen.blit(label, rect)
+
+        lines = text.split("\n")
+        line_surfaces = [self.result_font.render(line, True, config.color_result) for line in lines]
+
+        total_h = sum(s.get_height() for s in line_surfaces) + (len(line_surfaces) - 1) * 8
+        start_y = (config.height // 2) - (total_h // 2)
+
+        y = start_y
+        for surf in line_surfaces:
+            rect = surf.get_rect(center=(config.width // 2, y + surf.get_height() // 2))
+            self.screen.blit(surf, rect)
+            y += surf.get_height() + 8
 
 
 class InputController:
@@ -119,7 +141,7 @@ class InputController:
         col, row = self.pos_to_grid(pos[0], pos[1])
         if col == -1:
             return
-        
+
         game = self.game
 
         if button == config.mouse_left:
@@ -129,11 +151,11 @@ class InputController:
                 game.started = True
                 game.start_ticks_ms = pygame.time.get_ticks()
             game.board.reveal(col, row)
-    
+
         elif button == config.mouse_right:
             game.highlight_targets.clear()
             game.board.toggle_flag(col, row)
-               
+
         elif button == config.mouse_middle:
             neighbors = game.board.neighbors(col, row)
             game.highlight_targets = {
@@ -141,8 +163,9 @@ class InputController:
                 for (nc, nr) in neighbors
                 if not game.board.cells[game.board.index(nc, nr)].state.is_revealed
             }
-            
+
             game.highlight_until_ms = pygame.time.get_ticks() + config.highlight_duration_ms
+
 
 class Game:
     """Main application object orchestrating loop and high-level state."""
@@ -161,6 +184,34 @@ class Game:
         self.start_ticks_ms = 0
         self.end_ticks_ms = 0
 
+        self.best_time_ms = self._load_highscore_ms()
+
+    def _highscore_path(self) -> str:
+        filename = getattr(config, "highscore_file", "highscore.json")
+        return os.path.join(os.path.dirname(__file__), filename)
+
+    def _load_highscore_ms(self) -> int:
+        """Load best clear time (ms). Returns 0 if no record."""
+        path = self._highscore_path()
+        try:
+            with open(path, "r", encoding="utf-8") as f:
+                data = json.load(f)
+            best = int(data.get("best_time_ms", 0))
+            return max(0, best)
+        except (FileNotFoundError, json.JSONDecodeError, ValueError, TypeError):
+            return 0
+
+    def _save_highscore_ms(self) -> None:
+        """Persist best clear time (ms)."""
+        path = self._highscore_path()
+        data = {"best_time_ms": int(self.best_time_ms)}
+        try:
+            with open(path, "w", encoding="utf-8") as f:
+                json.dump(data, f, ensure_ascii=False, indent=2)
+        except OSError:
+            # Saving is best-effort; game should still run even if file write fails.
+            pass
+
     def reset(self):
         """Reset the game state and start a new board."""
         self.board = Board(config.cols, config.rows, config.num_mines)
@@ -170,6 +221,7 @@ class Game:
         self.started = False
         self.start_ticks_ms = 0
         self.end_ticks_ms = 0
+        # keep best_time_ms (high score) across resets
 
     def _elapsed_ms(self) -> int:
         """Return elapsed time in milliseconds (stops when game ends)."""
@@ -186,27 +238,48 @@ class Game:
         seconds = total_seconds % 60
         return f"{minutes:02d}:{seconds:02d}"
 
+    def _best_time_text(self) -> str:
+        if not self.best_time_ms:
+            return "--:--"
+        return self._format_time(self.best_time_ms)
+
     def _result_text(self) -> str | None:
         """Return result label to display, or None if game continues."""
         if self.board.game_over:
-            return "GAME OVER"
+            return f"GAME OVER\nBEST {self._best_time_text()}"
         if self.board.win:
-            return "GAME CLEAR"
+            return f"GAME CLEAR\nBEST {self._best_time_text()}"
         return None
+
+    def _maybe_finalize_and_update_best(self) -> None:
+        """When the game ends, stop timer and update/save best score if cleared faster."""
+        if (self.board.game_over or self.board.win) and self.started and not self.end_ticks_ms:
+            self.end_ticks_ms = pygame.time.get_ticks()
+
+            if self.board.win:
+                elapsed = self._elapsed_ms()
+                if elapsed > 0 and (self.best_time_ms == 0 or elapsed < self.best_time_ms):
+                    self.best_time_ms = elapsed
+                    self._save_highscore_ms()
 
     def draw(self):
         """Render one frame: header, grid, result overlay."""
         if pygame.time.get_ticks() > self.highlight_until_ms and self.highlight_targets:
             self.highlight_targets.clear()
+
         self.screen.fill(config.color_bg)
         remaining = max(0, config.num_mines - self.board.flagged_count())
         time_text = self._format_time(self._elapsed_ms())
-        self.renderer.draw_header(remaining, time_text)
+        best_text = self._best_time_text()
+
+        self.renderer.draw_header(remaining, time_text, best_text)
+
         now = pygame.time.get_ticks()
         for r in range(self.board.rows):
             for c in range(self.board.cols):
                 highlighted = (now <= self.highlight_until_ms) and ((c, r) in self.highlight_targets)
                 self.renderer.draw_cell(c, r, highlighted)
+
         self.renderer.draw_result_overlay(self._result_text())
         pygame.display.flip()
 
@@ -220,8 +293,9 @@ class Game:
                     self.reset()
             if event.type == pygame.MOUSEBUTTONDOWN:
                 self.input.handle_mouse(event.pos, event.button)
-        if (self.board.game_over or self.board.win) and self.started and not self.end_ticks_ms:
-            self.end_ticks_ms = pygame.time.get_ticks()
+
+        self._maybe_finalize_and_update_best()
+
         self.draw()
         self.clock.tick(config.fps)
         return True
