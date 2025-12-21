@@ -71,7 +71,7 @@ class Renderer:
                 )
         pygame.draw.rect(self.screen, config.color_grid, rect, 1)
 
-    def draw_header(self, remaining_mines: int, time_text: str) -> None:
+    def draw_header(self, remaining_mines: int, time_text: str, time_color) -> None:
         """Draw the header bar containing remaining mines and elapsed time."""
         pygame.draw.rect(
             self.screen,
@@ -81,7 +81,7 @@ class Renderer:
         left_text = f"Mines: {remaining_mines}"
         right_text = f"Time: {time_text}"
         left_label = self.header_font.render(left_text, True, config.color_header_text)
-        right_label = self.header_font.render(right_text, True, config.color_header_text)
+        right_label = self.header_font.render(right_text, True, time_color)
         self.screen.blit(left_label, (10, 12))
         self.screen.blit(right_label, (config.width - right_label.get_width() - 10, 12))
 
@@ -119,7 +119,7 @@ class InputController:
         col, row = self.pos_to_grid(pos[0], pos[1])
         if col == -1:
             return
-        
+
         game = self.game
 
         if button == config.mouse_left:
@@ -129,11 +129,11 @@ class InputController:
                 game.started = True
                 game.start_ticks_ms = pygame.time.get_ticks()
             game.board.reveal(col, row)
-    
+
         elif button == config.mouse_right:
             game.highlight_targets.clear()
             game.board.toggle_flag(col, row)
-               
+
         elif button == config.mouse_middle:
             neighbors = game.board.neighbors(col, row)
             game.highlight_targets = {
@@ -141,8 +141,9 @@ class InputController:
                 for (nc, nr) in neighbors
                 if not game.board.cells[game.board.index(nc, nr)].state.is_revealed
             }
-            
+
             game.highlight_until_ms = pygame.time.get_ticks() + config.highlight_duration_ms
+
 
 class Game:
     """Main application object orchestrating loop and high-level state."""
@@ -150,6 +151,11 @@ class Game:
     def __init__(self):
         pygame.init()
         pygame.display.set_caption(config.title)
+
+        self.difficulty = getattr(config, "default_difficulty", "normal")
+        if hasattr(config, "apply_difficulty"):
+            config.apply_difficulty(self.difficulty)
+
         self.screen = pygame.display.set_mode(config.display_dimension)
         self.clock = pygame.time.Clock()
         self.board = Board(config.cols, config.rows, config.num_mines)
@@ -171,6 +177,17 @@ class Game:
         self.start_ticks_ms = 0
         self.end_ticks_ms = 0
 
+    def set_difficulty(self, name: str) -> None:
+        """Change difficulty (board size + mines), resize window, and reset."""
+        if not hasattr(config, "difficulty_presets") or name not in config.difficulty_presets:
+            return
+        self.difficulty = name
+        config.apply_difficulty(name)
+
+        self.screen = pygame.display.set_mode(config.display_dimension)
+        self.renderer.screen = self.screen
+        self.reset()
+
     def _elapsed_ms(self) -> int:
         """Return elapsed time in milliseconds (stops when game ends)."""
         if not self.started:
@@ -186,6 +203,13 @@ class Game:
         seconds = total_seconds % 60
         return f"{minutes:02d}:{seconds:02d}"
 
+    def _timer_color(self, elapsed_ms: int):
+        """Toggle timer color every minute: even minute -> red, odd minute -> white."""
+        minutes = (elapsed_ms // 1000) // 60
+        if minutes % 2 == 0:
+            return config.color_timer_red
+        return config.color_timer_white
+
     def _result_text(self) -> str | None:
         """Return result label to display, or None if game continues."""
         if self.board.game_over:
@@ -198,15 +222,22 @@ class Game:
         """Render one frame: header, grid, result overlay."""
         if pygame.time.get_ticks() > self.highlight_until_ms and self.highlight_targets:
             self.highlight_targets.clear()
+
         self.screen.fill(config.color_bg)
         remaining = max(0, config.num_mines - self.board.flagged_count())
-        time_text = self._format_time(self._elapsed_ms())
-        self.renderer.draw_header(remaining, time_text)
+
+        elapsed = self._elapsed_ms()
+        time_text = self._format_time(elapsed)
+        time_color = self._timer_color(elapsed)
+
+        self.renderer.draw_header(remaining, time_text, time_color)
+
         now = pygame.time.get_ticks()
         for r in range(self.board.rows):
             for c in range(self.board.cols):
                 highlighted = (now <= self.highlight_until_ms) and ((c, r) in self.highlight_targets)
                 self.renderer.draw_cell(c, r, highlighted)
+
         self.renderer.draw_result_overlay(self._result_text())
         pygame.display.flip()
 
@@ -218,10 +249,18 @@ class Game:
             if event.type == pygame.KEYDOWN:
                 if event.key == pygame.K_r:
                     self.reset()
+                elif event.key == pygame.K_1:
+                    self.set_difficulty("easy")
+                elif event.key == pygame.K_2:
+                    self.set_difficulty("normal")
+                elif event.key == pygame.K_3:
+                    self.set_difficulty("hard")
             if event.type == pygame.MOUSEBUTTONDOWN:
                 self.input.handle_mouse(event.pos, event.button)
+
         if (self.board.game_over or self.board.win) and self.started and not self.end_ticks_ms:
             self.end_ticks_ms = pygame.time.get_ticks()
+
         self.draw()
         self.clock.tick(config.fps)
         return True

@@ -17,10 +17,18 @@ Groups:
 # Display settings
 fps = 60
 
-# Grid settings
+# Grid settings (default)
 cols = 16
 rows = 16
 num_mines = 40
+
+# Difficulty presets
+difficulty_presets = {
+    "easy": {"cols": 9, "rows": 9, "num_mines": 10},
+    "normal": {"cols": 16, "rows": 16, "num_mines": 40},
+    "hard": {"cols": 30, "rows": 16, "num_mines": 99},
+}
+default_difficulty = "normal"
 
 # Cell size and margins
 cell_size = 32
@@ -35,6 +43,27 @@ height = margin_top + rows * cell_size + margin_bottom
 
 display_dimension = (width, height)
 
+
+def recompute_dimensions() -> None:
+    """Recompute derived window size after changing cols/rows."""
+    global width, height, display_dimension
+    width = margin_left + cols * cell_size + margin_right
+    height = margin_top + rows * cell_size + margin_bottom
+    display_dimension = (width, height)
+
+
+def apply_difficulty(name: str) -> None:
+    """Apply difficulty preset by updating cols/rows/num_mines and window size."""
+    global cols, rows, num_mines
+    preset = difficulty_presets.get(name)
+    if not preset:
+        return
+    cols = preset["cols"]
+    rows = preset["rows"]
+    num_mines = preset["num_mines"]
+    recompute_dimensions()
+
+
 # Colors
 color_bg = (24, 26, 27)
 color_grid = (60, 64, 67)
@@ -48,6 +77,10 @@ color_header_text = (240, 240, 240)
 color_header = (32, 34, 36)
 color_highlight = (70, 130, 180)
 color_result = (242, 242, 0)
+
+# Timer text colors (toggle every minute)
+color_timer_red = (220, 0, 0)
+color_timer_white = (240, 240, 240)
 
 # Number colors 1~8
 number_colors = {
@@ -80,4 +113,3 @@ result_overlay_alpha = 120
 
 # Misc
 title = "Minesweeper"
-
