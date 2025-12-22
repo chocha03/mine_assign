@@ -162,6 +162,10 @@ class Game:
         self.start_ticks_ms = 0
         self.end_ticks_ms = 0
 
+        # Hint usage limit (Issue #3): allow exactly 3 hints per game.
+        self.hints_used = 0
+        self.max_hints = 3
+
     def reset(self):
         """Reset the game state and start a new board."""
         self.board = Board(config.cols, config.rows, config.num_mines)
@@ -172,9 +176,16 @@ class Game:
         self.start_ticks_ms = 0
         self.end_ticks_ms = 0
 
+        # Reset hint count for the new game.
+        self.hints_used = 0
+
     def use_hint(self) -> None:
         """Reveal one random safe cell as a hint."""
         if self.board.game_over or self.board.win:
+            return
+
+        # Enforce a hard cap of 3 hints per game.
+        if self.hints_used >= self.max_hints:
             return
 
         self.highlight_targets.clear()
@@ -183,7 +194,9 @@ class Game:
             self.started = True
             self.start_ticks_ms = pygame.time.get_ticks()
 
-        self.board.reveal_hint()
+        used = self.board.reveal_hint()
+        if used:
+            self.hints_used += 1
 
     def _elapsed_ms(self) -> int:
         """Return elapsed time in milliseconds (stops when game ends)."""
