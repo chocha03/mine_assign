@@ -119,7 +119,7 @@ class InputController:
         col, row = self.pos_to_grid(pos[0], pos[1])
         if col == -1:
             return
-        
+
         game = self.game
 
         if button == config.mouse_left:
@@ -129,11 +129,11 @@ class InputController:
                 game.started = True
                 game.start_ticks_ms = pygame.time.get_ticks()
             game.board.reveal(col, row)
-    
+
         elif button == config.mouse_right:
             game.highlight_targets.clear()
             game.board.toggle_flag(col, row)
-               
+
         elif button == config.mouse_middle:
             neighbors = game.board.neighbors(col, row)
             game.highlight_targets = {
@@ -141,8 +141,9 @@ class InputController:
                 for (nc, nr) in neighbors
                 if not game.board.cells[game.board.index(nc, nr)].state.is_revealed
             }
-            
+
             game.highlight_until_ms = pygame.time.get_ticks() + config.highlight_duration_ms
+
 
 class Game:
     """Main application object orchestrating loop and high-level state."""
@@ -161,6 +162,10 @@ class Game:
         self.start_ticks_ms = 0
         self.end_ticks_ms = 0
 
+        # Hint usage limit (Issue #3): allow exactly 3 hints per game.
+        self.hints_used = 0
+        self.max_hints = 3
+
     def reset(self):
         """Reset the game state and start a new board."""
         self.board = Board(config.cols, config.rows, config.num_mines)
@@ -170,6 +175,28 @@ class Game:
         self.started = False
         self.start_ticks_ms = 0
         self.end_ticks_ms = 0
+
+        # Reset hint count for the new game.
+        self.hints_used = 0
+
+    def use_hint(self) -> None:
+        """Reveal one random safe cell as a hint."""
+        if self.board.game_over or self.board.win:
+            return
+
+        # Enforce a hard cap of 3 hints per game.
+        if self.hints_used >= self.max_hints:
+            return
+
+        self.highlight_targets.clear()
+
+        if not self.started:
+            self.started = True
+            self.start_ticks_ms = pygame.time.get_ticks()
+
+        used = self.board.reveal_hint()
+        if used:
+            self.hints_used += 1
 
     def _elapsed_ms(self) -> int:
         """Return elapsed time in milliseconds (stops when game ends)."""
@@ -218,6 +245,8 @@ class Game:
             if event.type == pygame.KEYDOWN:
                 if event.key == pygame.K_r:
                     self.reset()
+                elif event.key == pygame.K_h:
+                    self.use_hint()
             if event.type == pygame.MOUSEBUTTONDOWN:
                 self.input.handle_mouse(event.pos, event.button)
         if (self.board.game_over or self.board.win) and self.started and not self.end_ticks_ms:
