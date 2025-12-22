@@ -119,7 +119,7 @@ class InputController:
         col, row = self.pos_to_grid(pos[0], pos[1])
         if col == -1:
             return
-        
+
         game = self.game
 
         if button == config.mouse_left:
@@ -129,11 +129,11 @@ class InputController:
                 game.started = True
                 game.start_ticks_ms = pygame.time.get_ticks()
             game.board.reveal(col, row)
-    
+
         elif button == config.mouse_right:
             game.highlight_targets.clear()
             game.board.toggle_flag(col, row)
-               
+
         elif button == config.mouse_middle:
             neighbors = game.board.neighbors(col, row)
             game.highlight_targets = {
@@ -141,8 +141,9 @@ class InputController:
                 for (nc, nr) in neighbors
                 if not game.board.cells[game.board.index(nc, nr)].state.is_revealed
             }
-            
+
             game.highlight_until_ms = pygame.time.get_ticks() + config.highlight_duration_ms
+
 
 class Game:
     """Main application object orchestrating loop and high-level state."""
@@ -150,6 +151,11 @@ class Game:
     def __init__(self):
         pygame.init()
         pygame.display.set_caption(config.title)
+
+        self.difficulty = getattr(config, "default_difficulty", "normal")
+        if hasattr(config, "apply_difficulty"):
+            config.apply_difficulty(self.difficulty)
+
         self.screen = pygame.display.set_mode(config.display_dimension)
         self.clock = pygame.time.Clock()
         self.board = Board(config.cols, config.rows, config.num_mines)
@@ -170,6 +176,17 @@ class Game:
         self.started = False
         self.start_ticks_ms = 0
         self.end_ticks_ms = 0
+
+    def set_difficulty(self, name: str) -> None:
+        """Change difficulty (board size + mines), resize window, and reset."""
+        if not hasattr(config, "difficulty_presets") or name not in config.difficulty_presets:
+            return
+        self.difficulty = name
+        config.apply_difficulty(name)
+
+        self.screen = pygame.display.set_mode(config.display_dimension)
+        self.renderer.screen = self.screen
+        self.reset()
 
     def _elapsed_ms(self) -> int:
         """Return elapsed time in milliseconds (stops when game ends)."""
@@ -218,6 +235,12 @@ class Game:
             if event.type == pygame.KEYDOWN:
                 if event.key == pygame.K_r:
                     self.reset()
+                elif event.key == pygame.K_1:
+                    self.set_difficulty("easy")
+                elif event.key == pygame.K_2:
+                    self.set_difficulty("normal")
+                elif event.key == pygame.K_3:
+                    self.set_difficulty("hard")
             if event.type == pygame.MOUSEBUTTONDOWN:
                 self.input.handle_mouse(event.pos, event.button)
         if (self.board.game_over or self.board.win) and self.started and not self.end_ticks_ms:
