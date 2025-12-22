@@ -204,11 +204,11 @@ class Game:
         return f"{minutes:02d}:{seconds:02d}"
 
     def _timer_color(self, elapsed_ms: int):
-        """Toggle timer color every minute: even minute -> red, odd minute -> white."""
-        minutes = (elapsed_ms // 1000) // 60
-        if minutes % 2 == 0:
+        """Timer turns red once elapsed time reaches 5 minutes; otherwise white."""
+        if elapsed_ms >= 5 * 60 * 1000:
             return config.color_timer_red
         return config.color_timer_white
+
 
     def _result_text(self) -> str | None:
         """Return result label to display, or None if game continues."""
