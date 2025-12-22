@@ -131,6 +131,35 @@ class Board:
                 self.reveal(ncell[0], ncell[1])
 
         self._check_win()
+        
+    def reveal_hint(self) -> bool:
+        """Reveal a random safe (non-mine) cell.
+        - If mines are not placed yet, choose an unrevealed/unflagged cell and call reveal().
+          reveal() will place mines with first-click safety, guaranteeing the chosen cell is safe.
+        - If mines are already placed, choose an unrevealed/unflagged non-mine cell.
+        """
+        if self.game_over or self.win:
+            return False
+
+        if not self._mines_placed:
+            candidates = [
+                (cell.col, cell.row)
+                for cell in self.cells
+                if (not cell.state.is_revealed) and (not cell.state.is_flagged)
+            ]
+        else:
+            candidates = [
+                (cell.col, cell.row)
+                for cell in self.cells
+                if (not cell.state.is_revealed) and (not cell.state.is_flagged) and (not cell.state.is_mine)
+            ]
+
+        if not candidates:
+            return False
+
+        col, row = random.choice(candidates)
+        self.reveal(col, row)
+        return True   
 
     def toggle_flag(self, col: int, row: int) -> None:
         if not self.is_inbounds(col, row):
