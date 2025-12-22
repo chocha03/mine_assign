@@ -81,3 +81,5 @@ result_overlay_alpha = 120
 # Misc
 title = "Minesweeper"
 
+# High score persistence
+highscore_file = "highscore.json"
