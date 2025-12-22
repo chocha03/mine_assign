@@ -85,7 +85,8 @@ class Renderer:
         right_text = f"Time: {time_text}"
 
         left_label = self.header_font.render(left_text, True, config.color_header_text)
-        mid_label = self.header_font.render(mid_text, True, config.color_header_text)
+        # 변경: Best 텍스트를 노란색(config.color_result)으로 렌더링
+        mid_label = self.header_font.render(mid_text, True, config.color_result)
         right_label = self.header_font.render(right_text, True, config.color_header_text)
 
         self.screen.blit(left_label, (10, 12))
