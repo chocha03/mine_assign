@@ -68,7 +68,7 @@ header_font_size = 24
 result_font_size = 64
 
 # Number font (for adjacency labels)
-number_font_family = "consolas"  # e.g. "couriernew", "arial"
+number_font_family = "arial"  # e.g. "couriernew", "arial"
 
 # Input
 mouse_left = 1
