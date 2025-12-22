@@ -26,7 +26,7 @@ num_mines = 40
 difficulty_presets = {
     "easy":   {"cols": 9,  "rows": 9,  "num_mines": 10},
     "normal": {"cols": 16, "rows": 16, "num_mines": 40},
-    "hard":   {"cols": 30, "rows": 16, "num_mines": 99},
+    "hard":   {"cols": 30, "rows": 16, "num_mines": 60},
 }
 default_difficulty = "normal"
 
